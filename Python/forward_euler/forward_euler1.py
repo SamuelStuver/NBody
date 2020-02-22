@@ -1,54 +1,107 @@
 import matplotlib
 import sys
 import math
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import pyplot as plt
 import pprint as pp
 import time
 
-def mag(vector):
-    return math.sqrt(vector[0]**2 + vector[1]**2 + vector[2]**2)
+class Vector3:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
     
+    def __add__(self, other):
+        return Vector3(self.x + other.x, self.y + other.y, self.z + other.z)
+    
+    def __sub__(self, other):
+        return Vector3(self.x - other.x, self.y - other.y, self.z - other.z)
+    
+    def dot(self, other):
+        # returns dot product of self and other
+        return ((self.x * other.x) + (self.y * other.y) + (self.z - other.z))
 
+    def __mul__(self, other):
+        if type(other) == type(self):
+            return self.dot(other)
+        elif type(other) in (int, float):
+            return Vector3(self.x * other, self.y * other, self.z * other)
+    
+    def __rmul__(self, other):
+        return self.__mul__(other)
+    
+    def __truediv__(self, other):
+        if type(other) in (int, float):
+            return Vector3(self.x / other, self.y / other, self.z / other)
+    
+    def __abs__(self):
+        return math.sqrt(self.x**2 + self.y**2, self.z**2)
+    
+    def __str__(self):
+        return f"({self.x}, {self.y}, {self.z})"
+    
+    def __repr__(self):
+        return f"({self.x}, {self.y}, {self.z})"
+    
+class VectorList:
+    def __init__(self, vlist):
+        self.rawlist = vlist
+    
+    @property
+    def list(self):
+        return self.rawlist
+    @property
+    def x(self):
+        return [v.x for v in self.list]
+    @property
+    def y(self):
+        return [v.y for v in self.list]
+    @property
+    def z(self):
+        return [v.z for v in self.list]
+
+    def append(self, v):
+        self.list.append(v)
+    
+    def __str__(self):
+        out = ""
+        for v in self.list:
+            out += v.__repr__() + '\n'
+        return out
+    
+    def __repr__(self):
+        out = ""
+        for v in self.list:
+            out += v.__repr__() + '\n'
+        return out
 
 def main():
 
     dt = float(sys.argv[1])
 
     # Initial relative position
-    r_0 = [1, 0, 0]
-    v_0 = [0, 0.5, 0]
+    r = Vector3(1, 0, 0)
+    v = Vector3(0, 0.5, 0)
 
-    r_list = [r_0]
-    v_list = [v_0]
+    r_list = VectorList([r])
 
     t = 0
 
-    r = r_0
-    v = v_0
-
     while t < 10:
-        r_squared = (r[0]**2 + r[1]**2 + r[2]**2)
-        # Calculate current acceleration
-        a = [0,0,0]
-        for k in range(3): 
-            a[k] = -r[k] / (r_squared * math.sqrt(r_squared))
-        # Calcuate new position and velocity based on calculated acceleration
-        for k in range(3): 
-            r[k] += v[k] * dt
-            v[k] += a[k] * dt
-        print(mag(r), mag(v))
         
-       
-        r_list.append(r)
-        v_list.append(v)
+        r_squared = (r.x*r.x + r.y*r.y + r.z*r.z)
         
+        a = -1 * (r / (r_squared * math.sqrt(r_squared)))
+        r = r + (v*dt)
+        v = v + (a*dt)
 
+        r_list.append(r)
+        #v_list.append(v)
         t += dt
     
-    # for i in r_list:
-    #     print(i)
-
+    #pp.pprint(r_list.x)
+    plt.scatter(r_list.x,r_list.y, marker=".", s=1)
+    plt.show()
 
 
 if __name__ == "__main__":
