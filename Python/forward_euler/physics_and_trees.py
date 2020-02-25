@@ -23,15 +23,14 @@ class Body:
         self.r = self.r_0 = r
         self.v = v
         self.a = Vector3(0,0,0)
+        self.size = .01 * self.mass
         self.dot = Circle(Point(self.r.x,self.r.y), self.size)
-        self.dot.setOutline("white")
 
-    @property
-    def size(self):
-        return .01 * self.mass
 
-    def draw(self, win):
+
+    def draw(self, win, color="white"):
         #win.plot(self.r.x, self.r.y, "white")
+        self.dot.setOutline(color)
         self.dot.draw(win)
 
     def erase(self, win):
@@ -46,15 +45,49 @@ class Body:
         acc = -K1 * other.mass * r.unit / r_squared
         self.a = self.a + acc
 
+    def add_acceleration_BH(self, node, theta=0.5):
+
+        if self in node.bodies:
+            return
+
+        if node.isExternal():
+            r = self.r - node.centerOfMass
+            r_squared = r * r
+
+            # Calculate acceleration
+            acc = -K1 * node.totalMass * r.unit / r_squared
+            self.a = self.a + acc
+            return True
+
+        else:
+            s_d = node.boundary.width / abs(node.centerOfMass - self.r)
+            if s_d < theta:
+                r = self.r - node.centerOfMass
+                r_squared = r * r
+
+                # Calculate acceleration
+                acc = -K1 * node.totalMass * r.unit / r_squared
+                self.a = self.a + acc
+                return True
+
+            else:
+                self.add_acceleration(node.nw)
+                self.add_acceleration(node.ne)
+                self.add_acceleration(node.sw)
+                self.add_acceleration(node.se)
+
     def update(self, dt):
         self.r_0 = self.r
         self.r = self.r + (K2 * self.v * dt)
         self.v = self.v + (self.a * dt)
 
+        print(f"a: {self.a}")
+        print(f"v: {self.v}")
+        print(f"r: {self.r}")
         self.dot.move(self.r.x - self.r_0.x, self.r.y - self.r_0.y)
 
     def randomize(self, max_mass=1, max_r=1, max_v=1):
-        m = max_mass * random.random()
+        m = max_mass  * random.random()
 
         rx = random.uniform(-max_r, max_r)
         ry = random.uniform(-max_r, max_r)
@@ -88,7 +121,7 @@ class Quadrant:
         p2 = Point(self.x_center + self.width, self.y_center + self.height)
 
         self.rectangle = Rectangle(p1,p2)
-        self.rectangle.setOutline("white")
+        #self.rectangle.setOutline("white")
 
     def contains(self, body):
         min_x = self.x_center - self.width
@@ -97,9 +130,15 @@ class Quadrant:
         max_y = self.y_center + self.height
         return (min_x < body.r.x < max_x) and (min_y < body.r.y < max_y)
 
-    def draw(self, win):
+    def draw(self, win, color="white"):
+        self.rectangle.setOutline(color)
         self.rectangle.draw(win)
 
+    def intersects(self, range):
+        return not (range.x_center - range.width > self.x_center + self.width) or \
+                   (range.x_center + range.width < self.x_center - self.width) or \
+                   (range.y_center - range.height > self.y_center + self.height) or \
+                   (range.y_center + range.height < self.y_center - self.height)
 
 
 class QuadTree:
@@ -110,23 +149,24 @@ class QuadTree:
         self.bodies = []
         self.divided = False
 
-        # self.nw = QuadTree(boundary, capacity=self.capacity)
-        # self.ne = QuadTree(boundary, capacity=self.capacity)
-        # self.sw = QuadTree(boundary, capacity=self.capacity)
-        # self.se = QuadTree(boundary, capacity=self.capacity)
+        self.totalMass = 0
+        self.centerOfMass = Vector3(0,0,0)
 
         self.nw = self.ne = self.sw = self.se = None
 
-    @property
-    def totalMass(self):
-        return sum([body.mass for body in self.bodies])
+    # @property
+    # def totalMass(self):
+    #     return sum([body.mass for body in self.query(self.boundary)])
+    #
+    # @property
+    # def centerOfMass(self):
+    #     x = sum([body.x * body.mass for body in self.query(self.boundary)])
+    #     y = sum([body.y * body.mass for body in self.query(self.boundary)])
+    #     z = sum([body.z * body.mass for body in self.query(self.boundary)])
+    #     return Vector3(x, y, z)/ self.totalMass
 
-    @property
-    def centerOfMass(self):
-        x = sum([body.x * body.mass for body in self.bodies])
-        y = sum([body.y * body.mass for body in self.bodies])
-        z = sum([body.z * body.mass for body in self.bodies])
-        return Vector3(x, y, z)/ self.totalMass
+    def isExternal(self):
+        return (self.nw == self.ne == self.sw == self.se) is None
 
     def subdivide(self):
         x_center = self.boundary.x_center
@@ -154,6 +194,10 @@ class QuadTree:
         if len(self.bodies) < self.capacity:
             # print(f"{body.index} - ({self.boundary.x_center},{self.boundary.y_center}) ")
             self.bodies.append(body)
+            self.totalMass += body.mass
+            self.centerOfMass = self.centerOfMass + Vector3((body.r.x * body.mass)/self.totalMass,
+                                                            (body.r.y * body.mass)/self.totalMass,
+                                                            (body.r.z * body.mass)/self.totalMass)
             return True
 
         elif not self.divided:
@@ -170,9 +214,37 @@ class QuadTree:
         elif self.se and self.se.insert(body):
             return True
 
+    def query(self, qRange):
+        found = []
+        if not self.boundary.intersects(qRange):
+            # Empty
+            return found
+        else:
+            for body in self.bodies:
+                if qRange.contains(body):
+                    found.append(body)
+
+        if self.divided:
+            found.extend(self.nw.query(qRange))
+            found.extend(self.ne.query(qRange))
+            found.extend(self.sw.query(qRange))
+            found.extend(self.se.query(qRange))
+
+        return found
+
+    def populate_random(self, N=10, max_mass=1, max_r=10, max_v=30):
+        for i in range(N):
+            body = Body(index=i)
+            body.randomize(max_mass=max_mass, max_r=max_r, max_v=max_v)
+            self.insert(body)
+
+    def populate_from_list(self, bodies):
+        for body in bodies:
+            self.insert(body)
 
     def show(self, win):
-        self.boundary.draw(win)
+        # print(f"({self.boundary.x_center},{self.boundary.y_center}) - N Bodies: {self.nBodies}")
+        #self.boundary.draw(win)
         for b in self.bodies:
             b.draw(win)
         if self.divided:
@@ -203,6 +275,7 @@ def setupWindow(x_pix_size, y_pix_size, xsize, ysize):
 
 if __name__ == "__main__":
 
+    N = int(sys.argv[1])
 
     max_r = 10
     max_v = 30
@@ -211,24 +284,14 @@ if __name__ == "__main__":
 
     boundary = Quadrant(0, 0, max_r, max_r)
     qTree = QuadTree(boundary, capacity=capacity)
+    qTree.populate_random(N=N, max_mass=1, max_r=10, max_v=30)
 
-    N = int(sys.argv[1])
-    for i in range(N):
-        body = Body(index=i)
-        body.randomize(max_mass=max_mass, max_r=max_r, max_v=max_v)
-        qTree.insert(body)
+
 
     win = setupWindow(900, 900, 10, 10)
-
-    # for i in range(N):
-    #     print(i)
-    #     mousePoint = win.checkMouse()
-    #     if mousePoint:
-    #         r = Vector3(mousePoint.getX() + random.uniform(-.1, .1), mousePoint.getY() + random.uniform(-.1, .1), 0)
-    #         body = Body(r=r, index=i)
-    #         qTree.insert(body)
-    #         mousePoint = None
-    #     time.sleep(.1)
-
     qTree.show(win)
+    win.getMouse()
+
+    qRange = Quadrant(1, 1, .27, .33)
+    qRange.draw(win, color="red")
     win.getMouse()

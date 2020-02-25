@@ -1,11 +1,7 @@
 import sys
-import math
-from matplotlib import pyplot as plt
 from vector import *
 from graphics import *
-from physics import *
-import numpy as np
-
+from physics_and_trees import *
 
 import time
 
