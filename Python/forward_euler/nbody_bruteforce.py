@@ -39,7 +39,7 @@ def main():
                     if other.index != body.index:
                         body.add_acceleration(other)
                 #body.dot.undraw
-                body.update(dt)
+                body.update_pos(dt)
                 #body.draw(win)
 
             t += dt

@@ -26,7 +26,11 @@ class Body:
         self.size = .01 * self.mass
         self.dot = Circle(Point(self.r.x,self.r.y), self.size)
 
-
+    def __eq__(self, other):
+        if isinstance(other, Body):
+            return self.index == other.index
+        elif isinstance(other, QuadTree):
+            return len(other.query(other.boundary)) and abs(self.r - other.centerOfMass) < 0.001
 
     def draw(self, win, color="white"):
         #win.plot(self.r.x, self.r.y, "white")
@@ -45,49 +49,94 @@ class Body:
         acc = -K1 * other.mass * r.unit / r_squared
         self.a = self.a + acc
 
-    def add_acceleration_BH(self, node, theta=0.5):
+    def add_acceleration_BH(self, node, theta_crit):
 
-        if self in node.bodies:
-            return
+        """
+        For each body b:
+            For each node, (starting at root)
+                if node is external (only 1 body):
+                    calculate force between b and node body (RETURN)
 
-        if node.isExternal():
-            r = self.r - node.centerOfMass
+                if node is internal (has children):
+                    calculate theta = s/d (s = node.boundary.width, d = dist between body.r and node CoM)
+                        ==> theta = node.boundary.width / abs(node.centerOfMass - r)
+                    if theta < theta_crit, treat node as single body and calculate force (RETURN)
+                    if theta > theta_crit, run procedure recursively on node's children
+        """
+
+        """
+        SOMETHING IS WRONG WITH THIS ALGORITHM, NOT ACCURATELY DETECTING IF A BODY IS THE SAME AS ONE CONTAINED IN THE CURRENT NODE
+        """
+
+
+        if node is None:
+            return False
+
+        # if node has no bodies, ignore it
+        if node.isEmpty():
+            return False
+
+        all_internal_bodies = node.query(node.boundary)
+        if len(all_internal_bodies) == 1 and self in all_internal_bodies:
+            return False
+        elif len(all_internal_bodies) == 1 and not (self in all_internal_bodies):
+            other = node.bodies[0]
+            r = self.r - other.r
             r_squared = r * r
 
             # Calculate acceleration
-            acc = -K1 * node.totalMass * r.unit / r_squared
+            acc = -K1 * other.mass * r.unit / r_squared
             self.a = self.a + acc
             return True
 
+
+
+        # Finally, if node is not external, check if it has CoM far enough that all contained bodies can be
+        # approximated as a single body (width of node is sufficiently small compared the distance of its CoM,
+        # signified by theta_crit)
         else:
-            s_d = node.boundary.width / abs(node.centerOfMass - self.r)
-            if s_d < theta:
-                r = self.r - node.centerOfMass
+
+            totalMass = sum([body.mass for body in all_internal_bodies])
+
+            com_x = sum([body.r.x * body.mass for body in all_internal_bodies])
+            com_y = sum([body.r.y * body.mass for body in all_internal_bodies])
+            com_z = sum([body.r.z * body.mass for body in all_internal_bodies])
+            centerOfMass = Vector3(com_x, com_y, com_z)/ totalMass
+
+            theta_calc = node.boundary.width / abs(centerOfMass - self.r)
+            #print(theta_calc, theta_crit)
+            if theta_calc < theta_crit:
+                #print(theta_calc, theta_crit, "APPROX NODE")
+                # treat node bodies as single body
+                r = self.r - centerOfMass
                 r_squared = r * r
 
-                # Calculate acceleration
-                acc = -K1 * node.totalMass * r.unit / r_squared
+                # Calculate and add acceleration from node
+                acc = -K1 * totalMass * r.unit / r_squared
                 self.a = self.a + acc
                 return True
 
             else:
-                self.add_acceleration(node.nw)
-                self.add_acceleration(node.ne)
-                self.add_acceleration(node.sw)
-                self.add_acceleration(node.se)
+                #print(theta_calc, theta_crit, "DON'T APPROX NODE - SPLIT")
+                # Check children recursively until either node is external, or theta_calc < theta_crit
+                self.add_acceleration_BH(node.nw, theta_crit)
+                self.add_acceleration_BH(node.ne, theta_crit)
+                self.add_acceleration_BH(node.sw, theta_crit)
+                self.add_acceleration_BH(node.se, theta_crit)
 
-    def update(self, dt):
+    def update_pos(self, dt):
+        #print(f"Body {self.index}")
         self.r_0 = self.r
         self.r = self.r + (K2 * self.v * dt)
         self.v = self.v + (self.a * dt)
 
-        print(f"a: {self.a}")
-        print(f"v: {self.v}")
-        print(f"r: {self.r}")
+        # print(f"a: {self.a}")
+        # print(f"v: {self.v}")
+        # print(f"r: {self.r}")
         self.dot.move(self.r.x - self.r_0.x, self.r.y - self.r_0.y)
 
     def randomize(self, max_mass=1, max_r=1, max_v=1):
-        m = max_mass  * random.random()
+        m = max_mass  * random.uniform(.01, 1)
 
         rx = random.uniform(-max_r, max_r)
         ry = random.uniform(-max_r, max_r)
@@ -149,24 +198,40 @@ class QuadTree:
         self.bodies = []
         self.divided = False
 
-        self.totalMass = 0
-        self.centerOfMass = Vector3(0,0,0)
+        #self.totalMass = 0
+        #self.centerOfMass = Vector3(0,0,0)
 
         self.nw = self.ne = self.sw = self.se = None
 
+
     # @property
     # def totalMass(self):
-    #     return sum([body.mass for body in self.query(self.boundary)])
+    #     all_bodies = self.query(self.boundary)
+    #     return sum([body.mass for body in all_bodies])
     #
     # @property
     # def centerOfMass(self):
-    #     x = sum([body.x * body.mass for body in self.query(self.boundary)])
-    #     y = sum([body.y * body.mass for body in self.query(self.boundary)])
-    #     z = sum([body.z * body.mass for body in self.query(self.boundary)])
+    #     x = sum([body.r.x * body.mass for body in self.query(self.boundary)])
+    #     y = sum([body.r.y * body.mass for body in self.query(self.boundary)])
+    #     z = sum([body.r.z * body.mass for body in self.query(self.boundary)])
+    #     # print(f"N Nodies in Node: {len(self.query(self.boundary))} --- Total Mass of Node: {self.totalMass}")
+    #     # print(f"CoM of Node: {Vector3(x, y, z)/ self.totalMass}")
     #     return Vector3(x, y, z)/ self.totalMass
 
     def isExternal(self):
-        return (self.nw == self.ne == self.sw == self.se) is None
+        # Node is NOT external if it is divided. if it is not divided, it must have a body to be external
+        if self.divided:
+            return False
+        elif len(self.query(self.boundary)) >= 1:
+            return True
+
+    def isEmpty(self):
+        # Node is NOT empty if it is divided. If it is not divided, it can't have any bodies to be empty
+        if len(self.bodies) == 0:
+            return True
+        else:
+            return False
+
 
     def subdivide(self):
         x_center = self.boundary.x_center
@@ -194,10 +259,10 @@ class QuadTree:
         if len(self.bodies) < self.capacity:
             # print(f"{body.index} - ({self.boundary.x_center},{self.boundary.y_center}) ")
             self.bodies.append(body)
-            self.totalMass += body.mass
-            self.centerOfMass = self.centerOfMass + Vector3((body.r.x * body.mass)/self.totalMass,
-                                                            (body.r.y * body.mass)/self.totalMass,
-                                                            (body.r.z * body.mass)/self.totalMass)
+            #self.totalMass += body.mass
+            #self.centerOfMass = self.centerOfMass + Vector3((body.r.x * body.mass)/self.totalMass,
+            #                                                (body.r.y * body.mass)/self.totalMass,
+            #                                                (body.r.z * body.mass)/self.totalMass)
             return True
 
         elif not self.divided:
