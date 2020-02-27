@@ -320,16 +320,20 @@ class QuadTree:
         return found
 
     def populate_random(self, win, N=10, max_mass=1, max_r=10, max_v=30):
+        all_bodies = []
         for i in range(N):
             body = Body(index=i)
             body.randomize(max_mass=max_mass, max_r=max_r, max_v=max_v)
             self.insert(body)
+            all_bodies.append(body)
             body.draw(win)
 
-    def populate_from_list(self, bodies, win):
+        return all_bodies
+
+    def populate_from_list(self, bodies):
         for body in bodies:
-            self.insert(body)
             body.dot.move(body.r.x - body.r_0.x, body.r.y - body.r_0.y)
+            self.insert(body)
 
     def show(self, win):
         # print(f"({self.boundary.x_center},{self.boundary.y_center}) - N Bodies: {self.nBodies}")

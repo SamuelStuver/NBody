@@ -23,15 +23,13 @@ class Simulation:
         self.active = False
         self.max_width_or_height = self.window_x_size = self.window_y_size = window_x_size
         self.show_nodes = show_nodes
+        self.all_bodies = []
 
     def setup(self):
         self.win = setupWindow(900, 900, self.window_x_size, self.window_x_size)
         boundary = Quadrant(0, 0, self.window_x_size, self.window_y_size)
         self.root = QuadTree(boundary, capacity=self.capacity)
-        self.root.populate_random(self.win, N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON INSERT
-
-
-        self.all_bodies = self.root.query(boundary)
+        self.all_bodies = self.root.populate_random(self.win, N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON INSERT
 
         # Optional, modify max_x_coord and max_y_coord based on bodies with highest x and y
 
@@ -71,7 +69,7 @@ class Simulation:
                 self.max_width_or_height = body.r.y
         boundary = Quadrant(0, 0, self.max_width_or_height, self.max_width_or_height)
         self.root = QuadTree(boundary, capacity=self.capacity)
-        self.root.populate_from_list(self.all_bodies, self.win) # ERASE AND RE-DRAW EACH BODY UPON INSERT
+        self.root.populate_from_list(self.all_bodies) # ERASE AND RE-DRAW EACH BODY UPON INSERT
 
         if self.show_nodes:
             self.root.show(self.win)
