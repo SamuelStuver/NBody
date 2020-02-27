@@ -10,7 +10,7 @@ dt = float(sys.argv[2])
 
 class Simulation:
 
-    def __init__(self, N, dt, theta=1.0, capacity=1, max_mass=1, max_r=10, max_v=30, window_x_size = 10, window_y_size=10):
+    def __init__(self, N, dt, theta=1.0, capacity=1, max_mass=1, max_r=10, max_v=30, window_x_size = 10, window_y_size=10, show_nodes=False):
         self.N = N
         self.dt = dt
         self.theta = theta
@@ -21,23 +21,79 @@ class Simulation:
         self.win = None
         self.root = None
         self.active = False
-
-        self.window_x_size = window_x_size
-        self.window_y_size = window_y_size
-
+        self.max_width_or_height = self.window_x_size = self.window_y_size = window_x_size
+        self.show_nodes = show_nodes
 
     def setup(self):
+        self.win = setupWindow(900, 900, self.window_x_size, self.window_x_size)
         boundary = Quadrant(0, 0, self.window_x_size, self.window_y_size)
         self.root = QuadTree(boundary, capacity=self.capacity)
-        self.root.populate_random(N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v)
-        self.win = setupWindow(900, 900, self.window_x_size, self.window_x_size)
-        self.root.show(self.win)
-        self.win.getMouse()
-        self.active = True
+        self.root.populate_random(self.win, N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON INSERT
+
+
+        self.all_bodies = self.root.query(boundary)
+
+        # Optional, modify max_x_coord and max_y_coord based on bodies with highest x and y
 
         print(f"Set up simulation with {self.query_select(0, 0, self.window_x_size, self.max_r)} bodies.")
 
+        self.root.show(self.win)
+
+        self.win.getMouse()
+        self.root.erase()
+        self.active = True
+
+
         return self.active
+
+
+
+    def update(self):
+        # gets called each frame/time step
+        # For each body out of total:
+            # set acceleration of body to zero
+            # Add acceleration from other bodies or nodes based on B-H Algorithm
+            # Update the coordinates of the body
+        # Determine the highest and lowest x and y coordinates of any body
+        # New root node boundary is Quadrant((max_x_coord + min_x_coord)/2, (max_y_coord + min_y_coord)/2, (max_x_coord - min_x_coord)/2, (max_y_coord - min_y_coord)/2)
+        # Populate new QuadTree with updated bodies (QuadTree()) # ERASE AND RE-DRAW EACH BODY UPON INSERT
+
+
+
+        for body in self.all_bodies:
+            body.a = Vector3(0,0,0) # New frame, start adding accelerations from other bodies/nodes at zero
+            body.add_acceleration_BH(self.root, self.theta) # This function will step through tree recursively, adding to body.a
+            body.update_pos(self.dt) # body now has up-to-date acceleration, so update position and move the dot
+            # If a new body has an x or y value greater than the current max, update the current max
+            if body.r.x > self.max_width_or_height:
+                self.max_width_or_height = body.r.x
+            if body.r.y > self.max_width_or_height:
+                self.max_width_or_height = body.r.y
+        boundary = Quadrant(0, 0, self.max_width_or_height, self.max_width_or_height)
+        self.root = QuadTree(boundary, capacity=self.capacity)
+        self.root.populate_from_list(self.all_bodies, self.win) # ERASE AND RE-DRAW EACH BODY UPON INSERT
+
+        if self.show_nodes:
+            self.root.show(self.win)
+            self.root.erase()
+
+
+        #self.win.getMouse()
+        return self.win
+
+    def end(self):
+        self.win.getMouse()
+        self.active = False
+
+    def run_simulation(self):
+        assert self.setup()
+        try:
+            while self.active:
+                win = self.update()
+
+        except KeyboardInterrupt:
+            self.end()
+
 
     def query_select(self, x_center, y_center, w, h, show=False):
         qRange = Quadrant(x_center, y_center, w, h)
@@ -54,34 +110,7 @@ class Simulation:
         return len(bodies_found)
         self.win.getMouse()
 
-    def update(self):
-        # gets called each frame/time step
 
-        # All bodies must include bodies outside of window range
-        all_space = Quadrant(0, 0, 1000*self.window_x_size, 1000*self.window_y_size)
-        all_bodies = self.root.query(all_space)
-        #print(len(all_bodies))
-        # print(self.root.totalMass)
-        # print(self.root.centerOfMass)
-
-        for body in all_bodies:
-            body.a = Vector3(0,0,0) # New frame, start adding accelerations from other bodies/nodes at zero
-            body.add_acceleration_BH(self.root, self.theta) # This function will step through tree recursively, adding to body.a
-            body.update_pos(self.dt) # body now has up-to-date acceleration, so update position and move the dot
-
-        #self.win.getMouse()
-
-    def end(self):
-        self.win.getMouse()
-        self.active = False
-
-    def run_simulation(self):
-        assert self.setup()
-        try:
-            while self.active:
-                self.update()
-        except KeyboardInterrupt:
-            self.end()
 
 
 
@@ -134,7 +163,7 @@ class Simulation:
 
 
 def main():
-    sim = Simulation(N, dt, max_r=10, max_v=0, theta=0.5)
+    sim = Simulation(N, dt, max_r=10, max_v=1, theta=1, show_nodes=False)
     sim.run_simulation()
 
 

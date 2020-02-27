@@ -40,7 +40,8 @@ def main():
                         body.add_acceleration(other)
                 #body.dot.undraw
                 body.update_pos(dt)
-                #body.draw(win)
+                body.dot.move(body.r.x - body.r_0.x, body.r.y - body.r_0.y)
+
 
             t += dt
     except KeyboardInterrupt:
