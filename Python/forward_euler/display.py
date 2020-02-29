@@ -1,16 +1,10 @@
 from graphics import *
 
-# def main():
-#     win = GraphWin("NBody", 500, 500)
-#     win.setBackground("black")
-#     win.plot(250, 250, "white")
-#     win.getMouse()  # pause for click in window
-#     win.close()
-#
-# main()
-
-
-def setupWindow(xsize, ysize):
-    win = GraphWin("NBody", 500, 500)
+def setupWindow(x_pix_size, y_pix_size, xsize=10, ysize=10):
+    win = GraphWin("NBody", x_pix_size, y_pix_size)
     win.setBackground("black")
+    win.setCoords(-xsize, -ysize, xsize, ysize)
     return win
+
+
+WINDOW = setupWindow(800, 800)

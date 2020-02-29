@@ -2,11 +2,10 @@ import sys
 from vector import *
 from graphics import *
 from physics_and_trees import *
+from display import WINDOW
 import random
 import numpy as np
-global N, dt
-N = int(sys.argv[1])
-dt = float(sys.argv[2])
+
 
 class Simulation:
 
@@ -18,7 +17,6 @@ class Simulation:
         self.max_mass = max_mass
         self.max_r = max_r
         self.max_v = max_v
-        self.win = None
         self.root = None
         self.active = False
         self.max_width_or_height = self.window_x_size = self.window_y_size = window_x_size
@@ -26,21 +24,19 @@ class Simulation:
         self.all_bodies = []
 
     def setup(self):
-        self.win = setupWindow(900, 900, self.window_x_size, self.window_x_size)
         boundary = Quadrant(0, 0, self.window_x_size, self.window_y_size)
         self.root = QuadTree(boundary, capacity=self.capacity)
-        self.all_bodies = self.root.populate_random(self.win, N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON INSERT
+        self.all_bodies = self.root.populate_random(N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON INSERT
 
         # Optional, modify max_x_coord and max_y_coord based on bodies with highest x and y
 
-        print(f"Set up simulation with {self.query_select(0, 0, self.window_x_size, self.max_r)} bodies.")
+        print(f"Set up simulation with {self.N} bodies.")
 
-        self.root.show(self.win)
+        #self.root.show()
+        WINDOW.getMouse()
+        #self.root.erase()
 
-        self.win.getMouse()
-        self.root.erase()
         self.active = True
-
 
         return self.active
 
@@ -72,25 +68,28 @@ class Simulation:
         self.root.populate_from_list(self.all_bodies) # ERASE AND RE-DRAW EACH BODY UPON INSERT
 
         if self.show_nodes:
-            self.root.show(self.win)
+            self.root.show()
             self.root.erase()
 
 
-        #self.win.getMouse()
-        return self.win
-
     def end(self):
-        self.win.getMouse()
+        WINDOW.getMouse()
         self.active = False
 
-    def run_simulation(self):
+    def run_simulation(self, N_frames=None):
         assert self.setup()
-        try:
-            while self.active:
-                win = self.update()
 
-        except KeyboardInterrupt:
-            self.end()
+        if not N_frames:
+            try:
+                while self.active:
+                    self.update()
+
+            except KeyboardInterrupt:
+                self.end()
+
+        else:
+            for i in range(N_frames):
+                self.update()
 
 
     def query_select(self, x_center, y_center, w, h, show=False):
@@ -99,70 +98,28 @@ class Simulation:
         bodies_found = self.root.query(qRange)
 
         if show:
-            qRange.draw(self.win, color="red")
+            qRange.draw(color="red")
             for body in bodies_found:
-                body.erase(self.win)
+                body.erase()
                 body.size *= 10
-                body.draw(self.win, color="green")
+                body.draw(color="green")
 
         return len(bodies_found)
-        self.win.getMouse()
+        WINDOW.getMouse()
 
-
-
-
-
-
-    # ========================================================================
-
-    """
-    For each body b:
-        For each node, (starting at root)
-            if node is external (only 1 body):
-                calculate force between b and node body (RETURN)
-
-            if node is internal (has children):
-                calculate s/d (s = node.boundary.width, d = dist between body.r and node CoM)
-                    s/d = node.boundary.width / abs(node.centerOfMass - r)
-                if s/d < theta, treat node as single body and calculate force (RETURN)
-                if s/d > theta, run procedure recursively on node's children
-    draft: 
-
-    def add_acceleration_BH(self, node):
-
-        if node.isExternal():
-            r = self.r - node.centerOfMass
-            r_squared = r * r
-
-            # Calculate acceleration
-            acc = -K1 * node.totalMass * r.unit / r_squared
-            self.a = self.a + acc
-            return True
-
-        else:
-            s_d = node.boundary.width / abs(node.centerOfMass - self.r)
-            if s_d < theta:
-                r = self.r - node.centerOfMass
-                r_squared = r * r
-
-                # Calculate acceleration
-                acc = -K1 * node.totalMass * r.unit / r_squared
-                self.a = self.a + acc
-                return True
-
-            elif s_d >= theta:
-                self.add_acceleration(node.nw)
-                self.add_acceleration(node.ne)
-                self.add_acceleration(node.sw)
-                self.add_acceleration(node.se)
-
-
-    """
 
 
 def main():
+    global N
+    # N = int(sys.argv[1])
+    # dt = float(sys.argv[2])
+
+
+    N = 10
+    dt = 0.01
+
     sim = Simulation(N, dt, max_r=10, max_v=1, theta=1, show_nodes=False)
-    sim.run_simulation()
+    sim.run_simulation(N_frames=10)
 
 
 if __name__ == "__main__":
