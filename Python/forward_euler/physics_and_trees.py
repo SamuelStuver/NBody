@@ -17,13 +17,13 @@ K1=G*t_nd*m_nd/(r_nd**2*v_nd)
 K2=v_nd*t_nd/r_nd
 
 class Body:
-    def __init__(self, mass=0, r=Vector3(0,0,0), v=Vector3(0,0,0), index=0):
+    def __init__(self, mass=1, r=Vector3(0,0,0), v=Vector3(0,0,0), index=0):
         self.index = index
         self.mass = mass
         self.r = self.r_0 = r
         self.v = v
         self.a = Vector3(0,0,0)
-        self.size = .06#.01 * self.mass
+        self.size = .01 * self.mass
         self.dot = Circle(Point(self.r.x,self.r.y), self.size)
 
     def __eq__(self, other):
@@ -55,14 +55,14 @@ class Body:
             return
 
         # if node has no bodies, ignore it
-        if node.isEmpty:
+        if node.totalMass == 0:
             return False
 
-        # if node has body, but that body is current body, ignore the node
-        if not node.isEmpty and self in node.bodies:
-            return False
+        # # if node has body, but that body is current body, ignore the node
+        # if not node.isEmpty and self in node.bodies:
+        #     return False
 
-        # if node is not empty and doesn't already have the body,
+        # if node has a body that isn't the current body, calc acceleration due to other body and add it to current
         elif not node.isEmpty and not (self in node.bodies):
             other = node.bodies[0]
             r = self.r - other.r
@@ -74,23 +74,19 @@ class Body:
             return True
 
 
-        # Finally, if node is not external, check if it has CoM far enough that all contained bodies can be
+        # Finally, if node is internal, check if it has CoM far enough that all contained bodies can be
         # approximated as a single body (width of node is sufficiently small compared the distance of its CoM,
         # signified by theta_crit)
         else:
-            com_x = sum([body.r.x * body.mass for body in all_internal_bodies])
-            com_y = sum([body.r.y * body.mass for body in all_internal_bodies])
-            com_z = sum([body.r.z * body.mass for body in all_internal_bodies])
-            centerOfMass = Vector3(com_x, com_y, com_z)/ self.totalMass
 
-            theta_calc = node.boundary.width / abs(centerOfMass - self.r)
+            theta_calc = node.boundary.width / abs((node.moment/node.totalMass) - self.r)
             if theta_calc < theta_crit:
                 # treat node bodies as single body
-                r = self.r - centerOfMass
+                r = self.r - (node.moment/node.totalMass)
                 r_squared = r * r
 
                 # Calculate and add acceleration from node
-                acc = -K1 * totalMass * r.unit / r_squared
+                acc = -K1 * node.totalMass * r.unit / r_squared
                 self.a = self.a + acc
                 return True
 
@@ -188,7 +184,7 @@ class QuadTree:
         self.divided = False
 
         self.totalMass = 0
-        self.centerOfMass = Vector3(0,0,0)
+        self.moment = Vector3(0,0,0)
 
         #self.totalMass = 0
         #self.centerOfMass = Vector3(0,0,0)
@@ -223,14 +219,15 @@ class QuadTree:
                 #body.erase()
                 if q.insert(body):
                     self.totalMass += body.mass
+                    self.moment += body.mass * body.r
 
 
         self.bodies = []
 
-        nw.draw()
-        ne.draw()
-        sw.draw()
-        se.draw()
+        # nw.draw()
+        # ne.draw()
+        # sw.draw()
+        # se.draw()
 
         self.divided = True
 
@@ -273,7 +270,6 @@ class QuadTree:
         if self.isEmpty and not self.divided:
             self.bodies.append(body)
             body.draw()
-            print(body.index)
             return True
 
         # Otherwise, subdivide and then add the point to whichever node will accept it
@@ -322,6 +318,18 @@ class QuadTree:
         for body in bodies:
             body.dot.move(body.r.x - body.r_0.x, body.r.y - body.r_0.y)
             self.insert(body)
+
+    def populate_twoBody(self):
+        all_bodies = []
+        body_A = Body(mass=1, r=Vector3(-5,0,0), v=Vector3(0,-1,0), index=0)
+        body_B = Body(mass=1, r=Vector3(5, 0, 0), v=Vector3(0,1,0), index=1)
+
+        self.insert(body_A)
+        self.insert(body_B)
+        all_bodies.append(body_A)
+        all_bodies.append(body_B)
+
+        return all_bodies
 
     def show(self):
 

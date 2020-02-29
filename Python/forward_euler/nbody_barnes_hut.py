@@ -9,7 +9,7 @@ import numpy as np
 
 class Simulation:
 
-    def __init__(self, N, dt, theta=1.0, capacity=1, max_mass=1, max_r=10, max_v=30, window_x_size = 10, window_y_size=10, show_nodes=False):
+    def __init__(self, N, dt, theta=0.5, capacity=1, max_mass=1, max_r=10, max_v=30, window_x_size = 10, window_y_size=10, show_nodes=False):
         self.N = N
         self.dt = dt
         self.theta = theta
@@ -26,7 +26,8 @@ class Simulation:
     def setup(self):
         boundary = Quadrant(0, 0, self.window_x_size, self.window_y_size)
         self.root = QuadTree(boundary, capacity=self.capacity)
-        self.all_bodies = self.root.populate_random(N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON INSERT
+        self.all_bodies = self.root.populate_random(N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON
+        #self.all_bodies = self.root.populate_random()
 
         # Optional, modify max_x_coord and max_y_coord based on bodies with highest x and y
 
@@ -115,11 +116,11 @@ def main():
     # dt = float(sys.argv[2])
 
 
-    N = 10
+    N = 50
     dt = 0.01
 
-    sim = Simulation(N, dt, max_r=10, max_v=1, theta=1, show_nodes=False)
-    sim.run_simulation(N_frames=10)
+    sim = Simulation(N, dt, max_r=10, max_v=1, theta=0.5, show_nodes=False)
+    sim.run_simulation(N_frames=1000)
 
 
 if __name__ == "__main__":
