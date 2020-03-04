@@ -16,6 +16,27 @@ t_nd=3.154e+7 #s #orbital period of earth
 K1=G*t_nd*m_nd/(r_nd**2*v_nd)
 K2=v_nd*t_nd/r_nd
 
+def calc_acceleration(target_r, other_r, other_mass):
+    r = other_r - target_r
+    r_squared = r * r
+
+    # Calculate acceleration
+    acceleration = (-K1 * other_mass * r.unit / r_squared)
+    assert acceleration
+    return acceleration
+
+
+def drawLine(p1, p2, color):
+    line = Line(p1, p2)
+    line.setOutline(color)
+    line.undraw()
+    line.draw(WINDOW)
+    return line
+
+def eraseLine(line):
+    line.undraw()
+
+
 class Body:
     def __init__(self, mass=1, r=Vector3(0,0,0), v=Vector3(0,0,0), index=0):
         self.index = index
@@ -40,6 +61,47 @@ class Body:
     def erase(self):
         self.dot.undraw()
 
+    def check_theta(self, node, theta):
+        if not node:
+            return "STUFF1"
+
+        if (not node.divided) and (len(node.bodies) > 0) and self not in node.query(node.boundary):
+            line = drawLine(Point(self.r.x, self.r.y), Point(node.bodies[0].r.x, node.bodies[0].r.y), "red")
+            eraseLine(line)
+            if abs(node.bodies[0].r - self.r) > 0:
+                acceleration = calc_acceleration(self.r, node.bodies[0].r, node.bodies[0].mass)
+                print(acceleration)
+                return "STUFF2"
+                return acceleration # calculate acc from single point
+
+
+        if node.divided:
+            node_center_of_mass = Vector3(0,0,0)
+            for b in node.query(node.boundary):
+                node_center_of_mass.x += (b.mass * b.r.x)/node.totalMass
+                node_center_of_mass.y += (b.mass * b.r.y)/node.totalMass
+                node_center_of_mass.z += (b.mass * b.r.z)/node.totalMass
+            self.erase()
+            self.draw(color="red")
+            theta_calc = node.boundary.width / abs(node_center_of_mass - self.r)
+            if theta_calc < theta:
+                line = drawLine(Point(self.r.x, self.r.y), Point(node_center_of_mass.x, node_center_of_mass.y), "blue")
+                eraseLine(line)
+                acceleration = calc_acceleration(self.r, node_center_of_mass, node.totalMass)
+                print(acceleration)
+                return "STUFF3"
+                return acceleration # calculate acc from whole node
+
+            else:
+
+                self.check_theta(node.ne, theta)
+                self.check_theta(node.nw, theta)
+                self.check_theta(node.se, theta)
+                self.check_theta(node.sw, theta)
+        else:
+            return "STUFF4"
+
+
     def add_acceleration(self, other):
         r = self.r - other.r
         r_squared = r * r
@@ -49,6 +111,14 @@ class Body:
         self.a = self.a + acc
 
     def add_acceleration_BH(self, node, theta_crit):
+        acceleration = self.check_theta(node, theta_crit)
+        assert acceleration
+        if acceleration:
+            self.a = self.a + acc
+            print(acceleration)
+
+
+    def add_acceleration_BH_BAD(self, node, theta_crit):
 
         # if node has not been created, ignore it
         if node is None:
@@ -58,19 +128,14 @@ class Body:
         if node.totalMass == 0:
             return False
 
-        # # if node has body, but that body is current body, ignore the node
-        # if not node.isEmpty and self in node.bodies:
-        #     return False
-
         # if node has a body that isn't the current body, calc acceleration due to other body and add it to current
-        elif not node.isEmpty and not (self in node.bodies):
+        elif not node.isEmpty and not node.divided:
             other = node.bodies[0]
-            r = self.r - other.r
-            r_squared = r * r
 
             # Calculate acceleration
-            acc = -K1 * other.mass * r.unit / r_squared
+            acc = calc_acceleration(self.r, other.r, other.mass)
             self.a = self.a + acc
+            node.boundary.erase()
             return True
 
 
@@ -78,19 +143,17 @@ class Body:
         # approximated as a single body (width of node is sufficiently small compared the distance of its CoM,
         # signified by theta_crit)
         else:
-
-            theta_calc = node.boundary.width / abs((node.moment/node.totalMass) - self.r)
+            node.boundary.draw(color="green")
+            node_center_of_mass = (node.moment/node.totalMass)
+            theta_calc = node.boundary.width / abs(node_center_of_mass - self.r)
             if theta_calc < theta_crit:
-                # treat node bodies as single body
-                r = self.r - (node.moment/node.totalMass)
-                r_squared = r * r
-
                 # Calculate and add acceleration from node
-                acc = -K1 * node.totalMass * r.unit / r_squared
+                acc = calc_acceleration(self.r, node_center_of_mass, node.totalMass)
                 self.a = self.a + acc
                 return True
 
             else:
+                node.boundary.erase()
                 # Check children recursively until either node is external, or theta_calc < theta_crit
                 self.add_acceleration_BH(node.nw, theta_crit)
                 self.add_acceleration_BH(node.ne, theta_crit)
@@ -102,7 +165,9 @@ class Body:
         self.r = self.r + (K2 * self.v * dt)
         self.v = self.v + (self.a * dt)
 
-        #self.dot.move(self.r.x - self.r_0.x, self.r.y - self.r_0.y)
+        print("*********", self.r - self.r_0)
+
+        self.dot.move(self.r.x - self.r_0.x, self.r.y - self.r_0.y)
 
     def randomize(self, max_mass=1, max_r=1, max_v=1):
         m = max_mass #  * random.uniform(.01, 1)
@@ -219,7 +284,9 @@ class QuadTree:
                 #body.erase()
                 if q.insert(body):
                     self.totalMass += body.mass
-                    self.moment += body.mass * body.r
+                    self.moment.x += body.mass * body.r.x
+                    self.moment.y += body.mass * body.r.y
+                    self.moment.z += body.mass * body.r.z
 
 
         self.bodies = []
@@ -232,36 +299,7 @@ class QuadTree:
         self.divided = True
 
     def insert(self, body):
-        """
-        // Insert a point into the QuadTree
-        function insert(XY p)
-        {
-            // Ignore objects that do not belong in this quad tree
-            if (!boundary.containsPoint(p))
-                return false; // object cannot be added
 
-            // If there is space in this quad tree and if doesn't have subdivisions, add the object here
-            if (points.size < QT_NODE_CAPACITY && northWest == null)
-            {
-                points.append(p);
-                return true;
-            }
-
-            // Otherwise, subdivide and then add the point to whichever node will accept it
-            if (northWest == null)
-                subdivide();
-            //We have to add the points/data contained into this quad array to the new quads if we want that only
-            //the last node holds the data
-
-            if (northWest->insert(p)) return true;
-            if (northEast->insert(p)) return true;
-            if (southWest->insert(p)) return true;
-            if (southEast->insert(p)) return true;
-
-            // Otherwise, the point cannot be inserted for some unknown reason (this should never happen)
-            return false;
-        }
-        """
         # If body does not go within the bounds of this section, return
         if not (self.boundary.contains(body)):
             return False # body cannot be added
@@ -320,19 +358,17 @@ class QuadTree:
             self.insert(body)
 
     def populate_twoBody(self):
-        all_bodies = []
-        body_A = Body(mass=1, r=Vector3(-5,0,0), v=Vector3(0,-1,0), index=0)
-        body_B = Body(mass=1, r=Vector3(5, 0, 0), v=Vector3(0,1,0), index=1)
 
-        self.insert(body_A)
-        self.insert(body_B)
-        all_bodies.append(body_A)
-        all_bodies.append(body_B)
+        body_A = Body(mass=1, r=Vector3(-1,0,0), v=Vector3(0,-1,0), index=0)
+        body_B = Body(mass=1, r=Vector3(1,0,0), v=Vector3(0,1,0), index=1)
 
+        all_bodies = [body_A, body_B]
+        for body in all_bodies:
+            self.insert(body)
         return all_bodies
 
     def show(self):
-
+        self.boundary.draw()
         if self.divided:
             self.nw.show()
             self.ne.show()

@@ -9,7 +9,7 @@ import numpy as np
 
 class Simulation:
 
-    def __init__(self, N, dt, theta=0.5, capacity=1, max_mass=1, max_r=10, max_v=30, window_x_size = 10, window_y_size=10, show_nodes=False):
+    def __init__(self, N, dt, theta=0.25, capacity=1, max_mass=1, max_r=10, max_v=30, window_x_size = 10, window_y_size=10, show_nodes=False):
         self.N = N
         self.dt = dt
         self.theta = theta
@@ -26,16 +26,17 @@ class Simulation:
     def setup(self):
         boundary = Quadrant(0, 0, self.window_x_size, self.window_y_size)
         self.root = QuadTree(boundary, capacity=self.capacity)
-        self.all_bodies = self.root.populate_random(N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=self.max_v) # DRAW EACH BODY UPON
+        self.all_bodies = self.root.populate_random(N=N, max_mass=self.max_mass, max_r=self.max_r, max_v=0)
+        #self.all_bodies = self.root.populate_twoBody()
         #self.all_bodies = self.root.populate_random()
 
         # Optional, modify max_x_coord and max_y_coord based on bodies with highest x and y
 
         print(f"Set up simulation with {self.N} bodies.")
 
-        #self.root.show()
+        self.root.show()
         WINDOW.getMouse()
-        #self.root.erase()
+        self.root.erase()
 
         self.active = True
 
@@ -57,7 +58,8 @@ class Simulation:
 
         for body in self.all_bodies:
             body.a = Vector3(0,0,0) # New frame, start adding accelerations from other bodies/nodes at zero
-            body.add_acceleration_BH(self.root, self.theta) # This function will step through tree recursively, adding to body.a
+
+            body.add_acceleration_BH(self.root, 0.5) # This function will step through tree recursively, adding to body.a
             body.update_pos(self.dt) # body now has up-to-date acceleration, so update position and move the dot
             # If a new body has an x or y value greater than the current max, update the current max
             if body.r.x > self.max_width_or_height:
@@ -112,15 +114,15 @@ class Simulation:
 
 def main():
     global N
-    # N = int(sys.argv[1])
-    # dt = float(sys.argv[2])
+    N = int(sys.argv[1])
+    dt = float(sys.argv[2])
 
 
-    N = 50
-    dt = 0.01
+    # N = 50
+    # dt = 0.01
 
-    sim = Simulation(N, dt, max_r=10, max_v=1, theta=0.5, show_nodes=False)
-    sim.run_simulation(N_frames=1000)
+    sim = Simulation(N, dt, max_r=10, max_v=1, theta=0.2, show_nodes=False)
+    sim.run_simulation()
 
 
 if __name__ == "__main__":
